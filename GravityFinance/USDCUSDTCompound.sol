@@ -21,7 +21,11 @@ interface IGFIFarmV2 {
     function emergencyWithdraw() external;
 }
 
-contract GFIVault1 {
+interface IIronSwap {
+    function swap(uint8 fromIndex, uint8 toIndex, uint256 inAmount, uint256 minOutAmount, uint256 deadline) external returns (uint256);
+}
+
+contract GFIVaultV2 {
     
     address public owner;
     IERC20 public GLP = IERC20(0x42286296C3edE3f6a0ec4e687939b017408Cf321);
@@ -30,19 +34,28 @@ contract GFIVault1 {
     IERC20 public USDT = IERC20(0xc2132D05D31c914a87C6611C10748AEb04B58e8F);
     IGFIRouter public GFIRouter = IGFIRouter(0x57dE98135e8287F163c59cA4fF45f1341b680248);
     IGFIFarmV2 public GFIFarm = IGFIFarmV2(0xe3bC11531D78Ce351Db9D2f0eC270B863FaC1C07);
+    IIronSwap public IronSwap = IIronSwap(0x837503e8A8753ae17fB8C8151B8e6f586defCb57);
     
     uint constant TWENTY_MINUTES = 1200;
+
+    address constant public admin = 0x00006E3e0ADC2af7EA28D2010d846eFab842D8c2;
 
     constructor() {
         owner = msg.sender;
         GLP.approve(address(GFIFarm), 2**256 - 1);
         GFI.approve(address(GFIRouter), 2**256 - 1);
         USDC.approve(address(GFIRouter), 2**256 - 1);
+        USDC.approve(address(IronSwap), 2**256 - 1);
         USDT.approve(address(GFIRouter), 2**256 - 1);
     }
 
     modifier onlyOwner {
         require(owner == msg.sender, "GFICompounder: caller is not the owner");
+        _;
+    }
+
+    modifier onlyAdmin {
+        require(owner == msg.sender || admin == msg.sender, "GFICompounder: caller is not the owner nor an admin address");
         _;
     }
 
@@ -72,7 +85,7 @@ contract GFIVault1 {
         tokenContract.transfer(owner, tokenContract.balanceOf(address(this)));
     }
 
-    function compound() public onlyOwner {
+    function compound() public onlyAdmin {
         GFIFarm.withdraw(0);
 
         if (address(GFI) != address(USDC)) {
@@ -124,6 +137,17 @@ contract GFIVault1 {
     }
 
     function _swapHalfUSDCForUSDT() internal {
+        // IronSwap strategy to maximize stablecoin returns.
+
+        IronSwap.swap(
+            0,
+            1,
+            (USDC.balanceOf(address(this))/2),
+            0,
+            block.timestamp + TWENTY_MINUTES
+        );
+
+        /*
         address[] memory path = new address[](2);
         path[0] = address(USDC);
         path[1] = address(USDT);
@@ -135,6 +159,7 @@ contract GFIVault1 {
             address(this),
             (block.timestamp + TWENTY_MINUTES)
         );
+        */
     }
 
     function call(address payable _to, uint256 _value, bytes calldata _data) external payable onlyOwner returns (bytes memory) {
