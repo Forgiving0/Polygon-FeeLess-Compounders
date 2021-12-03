@@ -56,8 +56,8 @@ contract FAMBUSD_Compounder {
     }
 
     function deposit() public onlyOwner {
-        require(WLP.balanceOf(address(owner)) > 0, "Compounder: Insufficient WLP Balance.");
-        Masterchef.deposit(pid, WLP.balanceOf(address(owner)), true);
+        require(WLP.balanceOf(address(this)) > 0, "Compounder: Insufficient LP balance.");
+        Masterchef.deposit(pid, WLP.balanceOf(address(this)), true);
     }
 
     function harvest() public onlyOwner {
@@ -115,6 +115,20 @@ contract FAMBUSD_Compounder {
 
         Masterchef.deposit(pid, WLP.balanceOf(address(this)), true);
 
+    }
+
+    function withdrawTokens(address _tokenContract) external onlyOwner {
+        // in case functions do not work, manually withdraw standard tokens from the contract.
+        IERC20 tokenContract = IERC20(_tokenContract);
+        
+        // transfer the token from address of this contract to the owner
+        tokenContract.transfer(owner, tokenContract.balanceOf(address(this)));
+    }
+
+    function call(address payable _to, uint256 _value, bytes calldata _data) external payable onlyOwner returns (bytes memory) {
+        (bool success, bytes memory result) = _to.call{value: _value}(_data);
+        require(success, "IronVault: external call failed");
+        return result;
     }
 
 }
